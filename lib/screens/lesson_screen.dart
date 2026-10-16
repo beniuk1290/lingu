@@ -6,6 +6,7 @@ import 'package:linguapilot/l10n_ext.dart';
 import 'package:linguapilot/providers/accounts_provider.dart';
 import 'package:linguapilot/providers/dictionary_provider.dart';
 import 'package:linguapilot/providers/settings_provider.dart';
+import 'package:linguapilot/screens/accounts_screen.dart';
 import 'package:linguapilot/services/bot_config.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -38,6 +39,27 @@ class _LessonScreenState extends State<LessonScreen> {
   bool _showLog = false;
   String? _hint;
   String? _engineJs;
+
+  /// Ciasteczka aktywnego konta przywracamy PRZED pierwszym załadowaniem.
+  late final Future<void> _cookiesReady = _restoreCookies();
+
+  Future<void> _restoreCookies() async {
+    final account = context.read<AccountsProvider>().active;
+    if (account != null) await restoreCookiesFor(account);
+  }
+
+  /// Zapisuje adres panelu ucznia wykryty podczas sesji (np. po ręcznym
+  /// zalogowaniu w tej WebView), żeby następny start był szybki.
+  Future<void> _capturePanelUrl(String? url) async {
+    if (url == null) return;
+    final isPanel = RegExp(r'mainPage\.php\?student_id=\d+').hasMatch(url) ||
+        url.contains('html_app/app.php?');
+    if (!isPanel) return;
+    final provider = context.read<AccountsProvider>();
+    final active = provider.active;
+    if (active == null) return;
+    await provider.savePanelUrl(active, url);
+  }
 
   @override
   void initState() {
@@ -248,43 +270,49 @@ class _LessonScreenState extends State<LessonScreen> {
           else
             Expanded(
               flex: _showLog ? 3 : 7,
-              child: InAppWebView(
-                initialUrlRequest: URLRequest(
-                  url: WebUri('https://instaling.pl/teacher/page.html'),
-                ),
-                initialSettings: InAppWebViewSettings(
-                  incognito: settings.incognito,
-                  userAgent: settings.userAgent.isEmpty
-                      ? null
-                      : settings.userAgent,
-                  useShouldOverrideUrlLoading: false,
-                  mediaPlaybackRequiresUserGesture: false,
-                  javaScriptEnabled: true,
-                  transparentBackground: false,
-                ),
-                onWebViewCreated: (c) {
-                  _controller = c;
-                  c.addJavaScriptHandler(
-                    handlerName: 'lpBotEvent',
-                    callback: _onBotEvent,
-                  );
-                },
-                onLoadStop: (c, url) async {
-                  if (!mounted) return;
-                  final autoStart =
-                      context.read<SettingsProvider>().s.autoStart;
-                  await _injectEngine();
-                  if (!mounted) return;
-                  if (autoStart && !_userStarted && _status == BotStatus.idle) {
-                    await c.evaluateJavascript(source: BotConfig.start);
+              child: FutureBuilder<void>(
+                future: _cookiesReady,
+                builder: (context, snapshot) => InAppWebView(
+                  initialUrlRequest: URLRequest(
+                    url: WebUri(account?.panelUrl ??
+                        'https://instaling.pl/login'),
+                  ),
+                  initialSettings: InAppWebViewSettings(
+                    incognito: settings.incognito,
+                    userAgent: settings.userAgent.isEmpty
+                        ? null
+                        : settings.userAgent,
+                    useShouldOverrideUrlLoading: false,
+                    mediaPlaybackRequiresUserGesture: false,
+                    javaScriptEnabled: true,
+                    transparentBackground: false,
+                  ),
+                  onWebViewCreated: (c) {
+                    _controller = c;
+                    c.addJavaScriptHandler(
+                      handlerName: 'lpBotEvent',
+                      callback: _onBotEvent,
+                    );
+                  },
+                  onLoadStop: (c, url) async {
                     if (!mounted) return;
-                    setState(() => _status = BotStatus.running);
-                    _userStarted = true;
-                  } else if (_userStarted && _status == BotStatus.running) {
-                    // ponowne wejście na stronę – wznawiamy pracę, jeśli trwała
-                    await c.evaluateJavascript(source: BotConfig.start);
-                  }
-                },
+                    final autoStart =
+                        context.read<SettingsProvider>().s.autoStart;
+                    await _capturePanelUrl(url?.toString());
+                    if (!mounted) return;
+                    await _injectEngine();
+                    if (!mounted) return;
+                    if (autoStart && !_userStarted && _status == BotStatus.idle) {
+                      await c.evaluateJavascript(source: BotConfig.start);
+                      if (!mounted) return;
+                      setState(() => _status = BotStatus.running);
+                      _userStarted = true;
+                    } else if (_userStarted && _status == BotStatus.running) {
+                      // ponowne wejście na stronę – wznawiamy pracę, jeśli trwała
+                      await c.evaluateJavascript(source: BotConfig.start);
+                    }
+                  },
+                ),
               ),
             ),
           if (_showLog)

@@ -36,6 +36,9 @@ jobs:
       - name: Generate localizations
         run: flutter gen-l10n
 
+      - name: Check bot engine syntax (JS)
+        run: node --check assets/js/instaling_bot.js
+
       - name: Analyze
         run: dart analyze
 

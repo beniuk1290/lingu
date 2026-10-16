@@ -46,7 +46,7 @@ class _LoginWebViewScreenState extends State<LoginWebViewScreen> {
                   context.read<AccountsProvider>().active!),
               builder: (context, snapshot) => InAppWebView(
                 initialUrlRequest: URLRequest(
-                  url: WebUri('https://instaling.pl/teacher/login.html'),
+                  url: WebUri('https://instaling.pl/login'),
                 ),
                 initialSettings: InAppWebViewSettings(
                   incognito: settings.incognito,
@@ -57,6 +57,7 @@ class _LoginWebViewScreenState extends State<LoginWebViewScreen> {
                 ),
                 onProgressChanged: (c, p) =>
                     setState(() => _progress = p / 100),
+                onLoadStop: (c, url) => _capturePanelUrl(url?.toString()),
               ),
             ),
           ),
@@ -97,5 +98,18 @@ class _LoginWebViewScreenState extends State<LoginWebViewScreen> {
       }
     }
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Po zalogowaniu serwer przekierowuje ucznia na
+  /// mainPage.php?student_id=N – zapamiętujemy ten adres dla lekcji.
+  Future<void> _capturePanelUrl(String? url) async {
+    if (!mounted || url == null) return;
+    final isPanel = RegExp(r'mainPage\.php\?student_id=\d+').hasMatch(url) ||
+        url.contains('html_app/app.php?');
+    if (!isPanel) return;
+    final provider = context.read<AccountsProvider>();
+    final active = provider.active;
+    if (active == null) return;
+    await provider.savePanelUrl(active, url);
   }
 }

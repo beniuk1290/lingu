@@ -12,7 +12,13 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  // Silnik żyje w oknie strony. Przy ponownej iniekcji w tym samym dokumencie
+  // (start/wznowienie/ładowanie) NIE tworzymy drugiej instancji z własną
+  // pętlą – konfiguracja i tak jest wywoływana zaraz potem z aplikacji.
+  if (window.__lpBot && typeof window.__lpBot.version === 'string') {
+    return;
+  }
+  var VERSION = '1.1.0';
 
   // ---------- konfiguracja (domyślne wartości, nadawane z aplikacji) ----------
   var cfg = {
@@ -40,6 +46,7 @@
   var busy = false;
   var timer = null;
   var stats = { answered: 0, learned: 0, corrections: 0, startedAt: 0 };
+  var lastLoginHintUrl = ''; // loginRequired raz na stronę logowania
 
   // ---------- pomocnicze ----------
   function $(sel, root) {
@@ -231,6 +238,48 @@
     return !!pwd && !$('#question');
   }
 
+  // ---------- nawigacja po stronie InstaLing ----------
+
+  /**
+   * Znajduje na panelu ucznia link startujący sesję.
+   * Pokrywa zmienny interfejs: #student_panel (starszy panel),
+   * linki wprost do aplikacji sesji (app.php) i teksty przycisków
+   * typu "Zacznij codzienną sesję" / "Dokończ sesję".
+   */
+  function findStartSessionLink() {
+    var known = $('#student_panel a');
+    if (isVisible(known)) return known;
+    var hrefs = document.querySelectorAll('a[href*="app.php"]');
+    for (var i = 0; i < hrefs.length; i++) {
+      if (isVisible(hrefs[i])) return hrefs[i];
+    }
+    var re = /^(zacznij|rozpocznij|dokończ|dokoncz|kontynuuj|kontynuowanie|wznów|wznow)/i;
+    var all = document.querySelectorAll('a, button, [role="button"]');
+    for (var j = 0; j < all.length; j++) {
+      var el = all[j];
+      if (!isVisible(el)) continue;
+      var t = txt(el);
+      if (t.length < 4 || t.length > 80) continue;
+      if (re.test(t) && /sesj/i.test(t)) return el;
+    }
+    return null;
+  }
+
+  /** Link "Zaloguj się" w menu – wejście na stronę logowania ze strony głównej. */
+  function findLoginLink() {
+    var cands = document.querySelectorAll(
+      'nav a[href*="login"], a[href="/login"], a[href*="/login"], a[href*="page=login"]');
+    for (var i = 0; i < cands.length; i++) {
+      if (isVisible(cands[i]) && /zaloguj/i.test(txt(cands[i]))) return cands[i];
+    }
+    var all = document.querySelectorAll('a, button, [role="button"]');
+    for (var j = 0; j < all.length; j++) {
+      var el = all[j];
+      if (isVisible(el) && /^zaloguj/i.test(txt(el))) return el;
+    }
+    return null;
+  }
+
   // ---------- obsługa stanów strony ----------
   async function handleNewWord() {
     emit('state', { state: 'newWord' });
@@ -285,7 +334,11 @@
     if (!document.body) return;
 
     if (isLoginPage()) {
-      emit('loginRequired', {});
+      // podpowiedź o logowaniu tylko raz na daną stronę (bez spamu w dzienniku)
+      if (lastLoginHintUrl !== window.location.href) {
+        lastLoginHintUrl = window.location.href;
+        emit('loginRequired', {});
+      }
       return;
     }
 
@@ -329,6 +382,27 @@
     if (prompt && input) {
       await handleQuestion(prompt, input);
       return;
+    }
+
+    // panel ucznia: "Zacznij codzienną sesję" / "Dokończ sesję" → aplikacja sesji
+    var startLink = findStartSessionLink();
+    if (startLink) {
+      emit('log', { msg: 'przechodzę do sesji: ' + txt(startLink).slice(0, 60) });
+      click(startLink);
+      await sleep(rand(cfg.delays.clickMin, cfg.delays.clickMax));
+      return;
+    }
+
+    // strona główna (marketing) – otwórz stronę logowania
+    var path = window.location.pathname || '/';
+    if (path === '/' || path === '/index.php' || path === '/index.html') {
+      var loginLink = findLoginLink();
+      if (loginLink) {
+        emit('log', { msg: 'otwieram stronę logowania' });
+        click(loginLink);
+        await sleep(rand(cfg.delays.clickMin, cfg.delays.clickMax));
+        return;
+      }
     }
 
     emit('idle', { url: window.location.href });

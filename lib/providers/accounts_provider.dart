@@ -77,6 +77,14 @@ class AccountsProvider extends ChangeNotifier {
     await _persist(account);
   }
 
+  /// Zapisuje adres panelu ucznia wykryty po zalogowaniu (bez notify –
+  /// nie wpływa na UI, a nadmiarowe przebudowy ekranów są niepotrzebne).
+  Future<void> savePanelUrl(Account account, String url) async {
+    if (account.panelUrl == url) return;
+    account.panelUrl = url;
+    await _persist(account);
+  }
+
   Future<void> recordSession(int newWords) async {
     final a = active;
     if (a == null) return;

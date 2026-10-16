@@ -12,6 +12,11 @@ class Account {
   /// Zapisane ciasteczka sesji instaling.pl (mapa nazwa → wartość).
   Map<String, String> cookies;
 
+  /// Zapamiętany adres panelu ucznia (mainPage.php?student_id=...).
+  /// Serwer nadaje ten adres po zalogowaniu; dzięki niemu lekcja startuje
+  /// od razu we właściwym miejscu zamiast na stronie logowania.
+  String? panelUrl;
+
   Account({
     required this.id,
     required this.name,
@@ -20,6 +25,7 @@ class Account {
     this.wordsLearned = 0,
     this.lastSessionDate,
     this.streak = 0,
+    this.panelUrl,
     Map<String, String>? cookies,
   }) : cookies = cookies ?? {};
 
@@ -48,6 +54,7 @@ class Account {
         'wordsLearned': wordsLearned,
         'lastSessionDate': lastSessionDate,
         'streak': streak,
+        'panelUrl': panelUrl,
         'cookies': cookies,
       };
 
@@ -59,6 +66,7 @@ class Account {
         wordsLearned: (m['wordsLearned'] as num?)?.toInt() ?? 0,
         lastSessionDate: m['lastSessionDate'] as String?,
         streak: (m['streak'] as num?)?.toInt() ?? 0,
+        panelUrl: m['panelUrl'] as String?,
         cookies: ((m['cookies'] as Map?) ?? const {})
             .map((k, v) => MapEntry(k.toString(), v.toString())),
       );
