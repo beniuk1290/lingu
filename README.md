@@ -158,12 +158,30 @@ Result: `build\app\outputs\flutter-apk\app-release.apk`
 
 ### iOS
 
-iOS builds require macOS (Xcode + CocoaPods); they cannot be produced or tested on
-this Windows machine. On a Mac:
+iOS builds require macOS (Xcode + CocoaPods). From this Windows machine they are
+produced automatically by **GitHub Actions**:
 
-```bash
-flutter build ios --no-codesign   # or open ios/Runner.xcworkspace in Xcode
-```
+- Repo: https://github.com/beniuk1290/linguapilot (private)
+- Workflow: `.github/workflows/ios.yml` — on every push to `main` a macOS runner runs
+  `pub get` → `gen-l10n` → `dart analyze` → `flutter test` →
+  `flutter build ios --release --no-codesign` and uploads
+  **`LingoPilot-ios-unsigned.ipa`** as an artifact (~4 min per run).
+- Download: repo → *Actions* → latest green run → *Artifacts* (login required for a
+  private repo).
+
+**Installing the unsigned IPA without a Mac** (free Apple ID):
+
+1. Download `LingoPilot-ios-unsigned.ipa` from the Actions artifact.
+2. Use **Sideloadly** (Windows) or **AltServer/AltStore** — they sign the IPA with
+   your Apple ID and install it on the iPhone.
+3. The free signature expires after **7 days** — re-sideload weekly (AltStore can
+   refresh automatically while AltServer runs).
+
+Other options: full signing/TestFlight requires a paid Apple Developer account
+(99 USD/yr); running in the **Simulator** requires a Mac with Xcode.
+
+Free GitHub quota for private repos: 2,000 min/month, macOS counts ×10 →
+~200 min ≈ up to ~40 iOS builds per month. Public repo = free.
 
 ---
 
