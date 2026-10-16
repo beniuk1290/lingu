@@ -1,0 +1,62 @@
+# Buduje iOS na chmurowym Macu (GitHub-hosted runner).
+# Po wrzuceniu projektu na GitHuba: zakładka Actions → Run workflow,
+# albo zwykły push do main. Gotowy plik .ipa do pobrania pojawi się
+# w zakładce Artifacts (unsigned — podpisanie opisane niżej).
+name: iOS build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  ios:
+    name: Build iOS (unsigned IPA)
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # lib/l10n/generated/ jest w .gitignore — generujemy na CI
+      - name: Generate localizations
+        run: flutter gen-l10n
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
+
+      # Runner.app → unsigned .ipa (do pobrania jako artifact)
+      - name: Package .ipa
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -R Runner.app Payload/
+          zip -qry ../LingoPilot-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LingoPilot-ios-unsigned
+          path: build/ios/LingoPilot-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
