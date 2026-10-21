@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:linguapilot/l10n_ext.dart';
 import 'package:linguapilot/providers/accounts_provider.dart';
 import 'package:linguapilot/providers/dictionary_provider.dart';
 import 'package:linguapilot/providers/settings_provider.dart';
-import 'package:linguapilot/screens/accounts_screen.dart';
+import 'package:linguapilot/services/background_session_service.dart';
 import 'package:linguapilot/services/bot_config.dart';
+import 'package:linguapilot/services/cookie_vault.dart';
 import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -40,12 +43,34 @@ class _LessonScreenState extends State<LessonScreen> {
   String? _hint;
   String? _engineJs;
 
+  /// Stan sesji w tle (odświeżany co kilka sekund).
+  bool _bgRunning = false;
+  bool _wasBgRunning = false;
+  Timer? _bgPoll;
+
+  /// Referencja do providerów przechwycona raz – dispose() nie może
+  /// używać context.read.
+  AccountsProvider? _accountsRef;
+
   /// Ciasteczka aktywnego konta przywracamy PRZED pierwszym załadowaniem.
   late final Future<void> _cookiesReady = _restoreCookies();
 
   Future<void> _restoreCookies() async {
     final account = context.read<AccountsProvider>().active;
-    if (account != null) await restoreCookiesFor(account);
+    // zawsze czyścimy pamięć – sesje dwóch kont nigdy się nie mieszają
+    await CookieVault.replaceWith(account?.cookies ?? const {});
+  }
+
+  /// Odświeża zapis ciasteczek aktywnego konta (sesja po drodze mogła się
+  /// odnowić) – dzięki temu przełączanie kont działa także po sesji.
+  Future<void> _refreshCookieSnapshot() async {
+    final provider = context.read<AccountsProvider>();
+    final account = provider.active;
+    if (account == null) return;
+    final map = await CookieVault.read();
+    if (map.isNotEmpty) {
+      await provider.saveCookies(account, map);
+    }
   }
 
   /// Zapisuje adres panelu ucznia wykryty podczas sesji (np. po ręcznym
@@ -66,6 +91,27 @@ class _LessonScreenState extends State<LessonScreen> {
     super.initState();
     WakelockPlus.enable();
     _loadEngine();
+    _accountsRef = context.read<AccountsProvider>();
+    // sprawdzamy, czy w tle nie trwa właśnie sesja (np. po powrocie do apki)
+    unawaited(_refreshBgState());
+    _bgPoll = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(_refreshBgState());
+    });
+  }
+
+  Future<void> _refreshBgState() async {
+    final running = await BackgroundSessionService.isRunning();
+    if (!mounted) return;
+    if (_wasBgRunning && !running) {
+      // sesja w tle się właśnie zakończyła – odświeżamy statystyki i słownik
+      context.read<AccountsProvider>().load();
+      context.read<DictionaryProvider>().load();
+      _addLog('ℹ️ ${tr(context).lessonBgFinished}');
+    }
+    _wasBgRunning = running;
+    if (_bgRunning != running) {
+      setState(() => _bgRunning = running);
+    }
   }
 
   Future<void> _loadEngine() async {
@@ -76,7 +122,16 @@ class _LessonScreenState extends State<LessonScreen> {
 
   @override
   void dispose() {
+    _bgPoll?.cancel();
     WakelockPlus.disable();
+    // dopiszemy świeży zrzut ciasteczek do aktywnego konta (bez czyszczenia)
+    final provider = _accountsRef;
+    final account = provider?.active;
+    if (provider != null && account != null) {
+      CookieVault.read().then((map) {
+        if (map.isNotEmpty) provider.saveCookies(account, map);
+      });
+    }
     super.dispose();
   }
 
@@ -127,6 +182,10 @@ class _LessonScreenState extends State<LessonScreen> {
     switch (type) {
       case 'state':
         final s = ev['state'] as String? ?? '';
+        if (s == 'answering' || s == 'newWord' || s == 'revealing') {
+          // bot zaczyna wpisywać odpowiedź – klawiatura systemowa niepotrzebna
+          SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+        }
         if (s == 'running') {
           setState(() => _status = BotStatus.running);
         } else if (s == 'paused') {
@@ -201,6 +260,9 @@ class _LessonScreenState extends State<LessonScreen> {
       _answered = answered;
     });
     await context.read<AccountsProvider>().recordSession(_sessionNewWords);
+    // sesja mogła odnowić ciasteczka – odświeżamy zrzut konta
+    await _refreshCookieSnapshot();
+    if (!mounted) return;
     _addLog('🎉 ${t.lessonFinished}');
   }
 
@@ -241,6 +303,41 @@ class _LessonScreenState extends State<LessonScreen> {
     if (!mounted) return;
     setState(() => _status = BotStatus.idle);
     _addLog('⏹ ${t.lessonStop}');
+  }
+
+  // ---------- sesja w tle ----------
+
+  Future<void> _startBackground() async {
+    final t = tr(context);
+    if (_status == BotStatus.running || _status == BotStatus.paused) {
+      // dwie sesje naraz nie mają sensu – najpierw zatrzymujemy widoczną
+      await _controller?.evaluateJavascript(source: BotConfig.stop);
+      if (!mounted) return;
+      setState(() {
+        _status = BotStatus.idle;
+        _userStarted = false;
+      });
+    }
+    await BackgroundSessionService.start();
+    if (!mounted) return;
+    setState(() {
+      _bgRunning = true;
+      _wasBgRunning = true;
+    });
+    _addLog('🌙 ${t.lessonBgStarted}');
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(t.lessonBgStarted)));
+  }
+
+  Future<void> _stopBackground() async {
+    final t = tr(context);
+    BackgroundSessionService.stop();
+    if (!mounted) return;
+    setState(() {
+      _bgRunning = false;
+      _wasBgRunning = false;
+    });
+    _addLog('🌙 ${t.lessonBgStopped}');
   }
 
   // ---------- budowa ekranu ----------
@@ -328,10 +425,14 @@ class _LessonScreenState extends State<LessonScreen> {
             answered: _answered,
             newWords: _sessionNewWords,
             accountName: account?.name,
+            bgEnabled: settings.backgroundSession,
+            bgRunning: _bgRunning,
             onStart: _start,
             onPause: _pause,
             onResume: _resume,
             onStop: _stop,
+            onStartBg: _startBackground,
+            onStopBg: _stopBackground,
           ),
           if (_hint != null)
             Material(
@@ -359,20 +460,28 @@ class _ControlBar extends StatelessWidget {
   final int answered;
   final int newWords;
   final String? accountName;
+  final bool bgEnabled;
+  final bool bgRunning;
   final VoidCallback onStart;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onStop;
+  final VoidCallback onStartBg;
+  final VoidCallback onStopBg;
 
   const _ControlBar({
     required this.status,
     required this.answered,
     required this.newWords,
     required this.accountName,
+    this.bgEnabled = false,
+    this.bgRunning = false,
     required this.onStart,
     required this.onPause,
     required this.onResume,
     required this.onStop,
+    required this.onStartBg,
+    required this.onStopBg,
   });
 
   @override
@@ -450,6 +559,20 @@ class _ControlBar extends StatelessWidget {
                   ),
                 ],
               ),
+              if (bgEnabled) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: Icon(bgRunning
+                      ? Icons.stop_circle_outlined
+                      : Icons.notifications_active_outlined,
+                      size: 20),
+                  label: Text(bgRunning ? t.lessonBgStop : t.lessonBgStart),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(40),
+                  ),
+                  onPressed: bgRunning ? onStopBg : onStartBg,
+                ),
+              ],
             ],
           ),
         ),

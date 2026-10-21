@@ -22,6 +22,7 @@ class AppSettings {
   final bool remindersEnabled;
   final String reminder1; // "HH:mm"
   final String? reminder2; // "HH:mm" lub null
+  final bool backgroundSession; // sesja w tle + powiadomienie ze statystykami
 
   static const defaults = AppSettings(
     themeMode: 'system',
@@ -44,6 +45,7 @@ class AppSettings {
     remindersEnabled: false,
     reminder1: '18:00',
     reminder2: null,
+    backgroundSession: false,
   );
 
   const AppSettings({
@@ -67,6 +69,7 @@ class AppSettings {
     required this.remindersEnabled,
     required this.reminder1,
     required this.reminder2,
+    required this.backgroundSession,
   });
 
   AppSettings copyWith({
@@ -90,6 +93,7 @@ class AppSettings {
     bool? remindersEnabled,
     String? reminder1,
     String? reminder2,
+    bool? backgroundSession,
     bool clearAppLocale = false,
     bool clearReminder2 = false,
     bool clearUserAgent = false,
@@ -115,6 +119,7 @@ class AppSettings {
       remindersEnabled: remindersEnabled ?? this.remindersEnabled,
       reminder1: reminder1 ?? this.reminder1,
       reminder2: clearReminder2 ? null : (reminder2 ?? this.reminder2),
+      backgroundSession: backgroundSession ?? this.backgroundSession,
     );
   }
 
@@ -139,6 +144,7 @@ class AppSettings {
         'remindersEnabled': remindersEnabled,
         'reminder1': reminder1,
         'reminder2': reminder2,
+        'backgroundSession': backgroundSession,
       };
 
   factory AppSettings.fromMap(Map<String, dynamic>? m) {
@@ -165,6 +171,7 @@ class AppSettings {
       remindersEnabled: m['remindersEnabled'] as bool? ?? d.remindersEnabled,
       reminder1: m['reminder1'] as String? ?? d.reminder1,
       reminder2: m['reminder2'] as String?,
+      backgroundSession: m['backgroundSession'] as bool? ?? d.backgroundSession,
     );
   }
 

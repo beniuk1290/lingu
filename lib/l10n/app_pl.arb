@@ -79,6 +79,11 @@
   "@lessonHintStart": { "placeholders": { "button": { "type": "String" } } },
   "lessonMaxWords": "Osiągnięto limit słów na sesję ({count}).",
   "@lessonMaxWords": { "placeholders": { "count": { "type": "int" } } },
+  "lessonBgStart": "Start w tle",
+  "lessonBgStop": "Zakończ w tle",
+  "lessonBgStarted": "Sesja w tle ruszyła – możesz zamknąć aplikację. Statystyki dostaniesz w powiadomieniu.",
+  "lessonBgStopped": "Zatrzymano sesję w tle",
+  "lessonBgFinished": "Sesja w tle zakończona – statystyki odświeżone",
 
   "dictTitle": "Słowniczek",
   "dictSearchHint": "Szukaj słowa…",
@@ -123,6 +128,8 @@
   "settRemindersDesc": "Powiadomienie o nauce nawet bez otwierania aplikacji",
   "settReminder1": "Przypomnienie 1",
   "settReminder2": "Przypomnienie 2",
+  "settBgSession": "Sesja w tle",
+  "settBgSessionDesc": "Bot rozwiąże sesję także po wyjściu z aplikacji, a na koniec dostaniesz powiadomienie ze statystykami",
   "settSectionLook": "Wygląd i język",
   "settSectionBot": "Nauka i przypomnienia",
 

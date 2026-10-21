@@ -79,6 +79,11 @@
   "@lessonHintStart": { "placeholders": { "button": { "type": "String" } } },
   "lessonMaxWords": "Word limit for this session reached ({count}).",
   "@lessonMaxWords": { "placeholders": { "count": { "type": "int" } } },
+  "lessonBgStart": "Start in background",
+  "lessonBgStop": "Stop background",
+  "lessonBgStarted": "Background session started – you can close the app. You will get the stats in a notification.",
+  "lessonBgStopped": "Background session stopped",
+  "lessonBgFinished": "Background session finished – stats refreshed",
 
   "dictTitle": "Dictionary",
   "dictSearchHint": "Search words…",
@@ -123,6 +128,8 @@
   "settRemindersDesc": "Get notified about practice even without opening the app",
   "settReminder1": "Reminder 1",
   "settReminder2": "Reminder 2",
+  "settBgSession": "Background session",
+  "settBgSessionDesc": "The bot finishes the session even after you leave the app, and you get a statistics notification at the end",
   "settSectionLook": "Appearance & language",
   "settSectionBot": "Learning & reminders",
 

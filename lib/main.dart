@@ -5,6 +5,7 @@ import 'app.dart';
 import 'providers/accounts_provider.dart';
 import 'providers/dictionary_provider.dart';
 import 'providers/settings_provider.dart';
+import 'services/background_session_service.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
 
@@ -13,6 +14,7 @@ Future<void> main() async {
 
   await StorageService.init();
   await NotificationService.instance.init();
+  await BackgroundSessionService.initialize();
 
   runApp(
     MultiProvider(

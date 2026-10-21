@@ -1,47 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:linguapilot/l10n_ext.dart';
 import 'package:linguapilot/models/account.dart';
 import 'package:linguapilot/providers/accounts_provider.dart';
 import 'package:linguapilot/screens/login_webview_screen.dart';
+import 'package:linguapilot/services/cookie_vault.dart';
 import 'package:provider/provider.dart';
-
-const kInstaLingOrigin = 'https://instaling.pl';
 
 /// Zapisuje ciasteczka instaling.pl w aktywnym koncie i czyści je,
 /// aby kolejna osoba / konto mogła zalogować się w czystej sesji.
 Future<void> snapshotAndClearCookies(AccountsProvider provider) async {
-  try {
-    final cm = CookieManager.instance();
-    final cookies = await cm.getCookies(url: WebUri(kInstaLingOrigin));
-    final map = <String, String>{};
-    for (final c in cookies) {
-      map[c.name] = c.value;
-    }
-    await provider.saveCookies(provider.active!, map);
-    await cm.deleteAllCookies();
-  } catch (_) {
-    // WebView nie wystartował – nie ma czego zapisywać
+  final active = provider.active;
+  if (active == null) return;
+  final map = await CookieVault.read();
+  if (map.isNotEmpty) {
+    await provider.saveCookies(active, map);
   }
+  await CookieVault.clear();
 }
 
-/// Wczytuje zapisane ciasteczka aktywnego konta do WebView.
+/// Wczytuje zapisane ciasteczka konta do WebView (z pełnym wyczyszczeniem
+/// poprzedniej sesji – gwarancja braku mieszania kont).
 Future<void> restoreCookiesFor(Account account) async {
-  if (account.cookies.isEmpty) return;
-  try {
-    final cm = CookieManager.instance();
-    for (final entry in account.cookies.entries) {
-      await cm.setCookie(
-        url: WebUri(kInstaLingOrigin),
-        name: entry.key,
-        value: entry.value,
-        domain: '.instaling.pl',
-        path: '/',
-      );
-    }
-  } catch (_) {
-    // ignorujemy – użytkownik zaloguje się ręcznie
-  }
+  await CookieVault.replaceWith(account.cookies);
 }
 
 class AccountsScreen extends StatelessWidget {
@@ -119,10 +99,11 @@ class AccountsScreen extends StatelessWidget {
     if (provider.active != null) {
       await snapshotAndClearCookies(provider);
     }
-    await provider.add(name);
+    final account = await provider.add(name);
     if (!context.mounted) return;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LoginWebViewScreen()),
+      MaterialPageRoute(
+          builder: (_) => LoginWebViewScreen(account: account)),
     );
   }
 }
@@ -190,7 +171,7 @@ class _AccountCard extends StatelessWidget {
                 OutlinedButton(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                        builder: (_) => const LoginWebViewScreen()),
+                        builder: (_) => LoginWebViewScreen(account: account)),
                   ),
                   child: Text(t.accLogin),
                 ),

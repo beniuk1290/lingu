@@ -27,13 +27,26 @@ dictionary of every word it has ever seen.
 - Search, filter by mastery level, manual add/edit/delete, batch import/export.
 
 ### Two accounts
-- Save login + password for two accounts, switch between them in one tap.
-- Advanced: **cookie snapshot / restore** — stores the browser session so switching
-  does not require logging in again.
+- Two InstaLing accounts, switch between them in one tap.
+- **Account-scoped login** — the login screen is bound to a specific account, so
+  signing into the second account never overwrites the first one's session.
+- **Cookie snapshot / restore** — every switch first wipes the WebView cookie jar
+  completely and then restores exactly the selected account's session
+  (sessions can never mix; if a session expired you just log in again).
 
 ### Languages & reminders
 - Full app interface in **Polish, English and German** (Material 3, light & dark).
 - **Daily local notification** reminding you to run your session (time is configurable).
+
+### Background session (Android)
+- Toggle in **Ustawienia → Sesja w tle**. A dedicated *Start w tle* button on the
+  lesson screen runs the whole session in a **foreground service with a headless
+  WebView** — you can leave (or lock) the app while the bot keeps working.
+- On finish you get a **notification with session statistics** (answers, new words,
+  saved to the account + dictionary). A 25-minute watchdog stops the service safely.
+- Requires the notification permission (asked when enabling the toggle). Best
+  results: exclude LingoPilot from battery optimization (Xiaomi/Huawei especially).
+- Not available on iOS — the OS suspends apps in the background there.
 
 ### Onboarding
 - First-run 7-step wizard (language → accounts → typing style → reminders →

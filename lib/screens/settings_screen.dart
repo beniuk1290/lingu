@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:linguapilot/l10n_ext.dart';
@@ -170,6 +171,15 @@ class _BasicTab extends StatelessWidget {
                   onTap: () => _pickTime(context, s.reminder2 ?? '20:00', (v) =>
                       settings.update(s.copyWith(reminder2: v))),
                 ),
+              if (defaultTargetPlatform == TargetPlatform.android)
+                SwitchListTile(
+                  secondary:
+                      const Icon(Icons.picture_in_picture_alt_outlined),
+                  title: Text(t.settBgSession),
+                  subtitle: Text(t.settBgSessionDesc),
+                  value: s.backgroundSession,
+                  onChanged: (v) => _toggleBgSession(context, settings, v),
+                ),
             ],
           ),
         ),
@@ -191,6 +201,22 @@ class _BasicTab extends StatelessWidget {
     }
     await settings.update(
         settings.s.copyWith(remindersEnabled: enable));
+  }
+
+  Future<void> _toggleBgSession(BuildContext context,
+      SettingsProvider settings, bool enable) async {
+    if (enable) {
+      // powiadomienie o statystykach wymaga zgody użytkownika
+      final granted = await NotificationService.instance.requestPermissions();
+      if (!granted) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(tr(context).permBody)));
+        }
+        return;
+      }
+    }
+    await settings.update(settings.s.copyWith(backgroundSession: enable));
   }
 
   Future<void> _pickTheme(BuildContext context, AppSettings s) async {

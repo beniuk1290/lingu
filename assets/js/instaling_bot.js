@@ -18,7 +18,7 @@
   if (window.__lpBot && typeof window.__lpBot.version === 'string') {
     return;
   }
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
 
   // ---------- konfiguracja (domyślne wartości, nadawane z aplikacji) ----------
   var cfg = {
@@ -153,7 +153,11 @@
    */
   async function typeHuman(input, text) {
     if (!input || !text) return false;
-    try { input.focus(); } catch (e) { /* ignore */ }
+    // Strona często sama ustawia autofocus na polu odpowiedzi, co otwiera
+    // klawiaturę systemową – bot jej nie potrzebuje, więc pole od razu
+    // odchowujemy (wartość i tak wpisujemy zdarzeniami bezpośrednio).
+    try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) { /* ignore */ }
+    try { input.blur(); } catch (e) { /* ignore */ }
     var cur = '';
     for (var i = 0; i < text.length; i++) {
       var ch = text.charAt(i);

@@ -1,7 +1,7 @@
 name: linguapilot
 description: "LingoPilot – asystent nauki słówek z automatyczną sesją w WebView, trwałym słowniczkiem i codziennymi przypomnieniami."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -24,6 +24,7 @@ dependencies:
   share_plus: ^10.1.0
   file_picker: ^8.1.2
   path_provider: ^2.1.4
+  flutter_background_service: ^5.1.0
 
 dev_dependencies:
   flutter_test:
